@@ -50,7 +50,7 @@ def save_solution(out_dir, id_, solution):
         pickle.dump(solution, fd, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def three_body(out_dir, id_):
+def three_body(id_, out_dir, method="BDF"):
     # TODO: dither time points?
     x1, x2, x3 = get_random_static_pos()
     v0 = np.zeros(2 * 3)
@@ -59,30 +59,32 @@ def three_body(out_dir, id_):
     t = np.linspace(*tspan, 2500)
     # TODO: check for events
     res = solve_ivp(
-        forward, tspan, y0, method="BDF", t_eval=t, atol=1e-13, rtol=1e-13
+        forward, tspan, y0, method="BDF", t_eval=t, atol=1e-12, rtol=1e-13
     )
     solution = Solution(y0, res.t, res.y.T)
     save_solution(out_dir, id_, solution)
 
 
-def generate_solutions(n_max, out_dir):
+def generate_solutions(n_max, out_dir, method):
     if not os.path.isdir(out_dir):
         raise IOError(f"Output location does not exist: {out_dir}")
     for i in tqdm.tqdm(range(n_max), ncols=80):
-        three_body(out_dir, i)
+        three_body(out_dir, i, method=method)
 
 
 def worker(args):
     three_body(*args)
 
 
-def generate_solutions_parallel(n_max, out_dir):
+def generate_solutions_parallel(n_max, out_dir, method):
     if not os.path.isdir(out_dir):
-        raise IOError(f"Output location does not exist: {out_dir}")
+        os.mkdir(out_dir)
     with mp.Pool() as pool:
         for i in tqdm.tqdm(
             pool.imap_unordered(
-                worker, zip(repeat(out_dir), range(n_max)), chunksize=10
+                worker,
+                zip(range(n_max), repeat(out_dir), repeat(method)),
+                chunksize=10,
             ),
             ncols=80,
             total=n_max,
@@ -91,4 +93,5 @@ def generate_solutions_parallel(n_max, out_dir):
 
 
 if __name__ == "__main__":
-    generate_solutions_parallel(20_000, "data")
+    generate_solutions_parallel(40_000, "data_bdf", "BDF")
+    generate_solutions_parallel(40_000, "data_lsoda", "LSODA")
