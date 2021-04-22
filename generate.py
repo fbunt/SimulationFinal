@@ -59,9 +59,9 @@ def three_body(id_, out_dir, method="BDF"):
     y0 = np.array([*x1, *x2, *x3, *v0])
     tspan = (0, 10)
     t = np.random.uniform(0, 10, size=NT)
+    t.sort()
     t[0] = 0
     t[-1] = 10
-    t.sort()
     # TODO: check for events
     res = solve_ivp(
         forward, tspan, y0, method=method, t_eval=t, atol=1e-13, rtol=1e-13
