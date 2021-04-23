@@ -9,12 +9,12 @@ class ThreeBodyMLP(torch.nn.Module):
         # (x1x, x1y, x2x, x2y, v1x, v1y, v2x, v2y, v3x, v3y)
         n_out = 10
         super().__init__()
-        layers = [nn.Linear(n_in, n_hidden), nn.GELU(inplace=True)]
+        layers = [nn.Linear(n_in, n_hidden_size), nn.GELU()]
         for _ in range(1, n_hidden):
             layers.append(nn.Linear(n_hidden_size, n_hidden_size))
-            layers.append(nn.GELU(inplace=True))
+            layers.append(nn.GELU())
         layers.append(nn.Linear(n_hidden_size, n_out))
-        self.model = nn.Sequential(*layers)
+        self.model = nn.Sequential(*layers).double()
 
     def forward(self, x):
         return self.model(x)
