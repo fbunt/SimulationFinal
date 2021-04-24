@@ -14,7 +14,7 @@ class ThreeBodyMLP(torch.nn.Module):
             layers.append(nn.Linear(n_hidden_size, n_hidden_size))
             layers.append(nn.GELU())
         layers.append(nn.Linear(n_hidden_size, n_out))
-        self.model = nn.Sequential(*layers).double()
+        self.model = nn.Sequential(*layers)
 
     def forward(self, x):
         return self.model(x)

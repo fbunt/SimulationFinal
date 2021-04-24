@@ -127,6 +127,19 @@ def train_test_split(x, train_size):
     return train, test
 
 
+def dataset_to_array(ds, dtype=float, progress=True):
+    n = len(ds)
+    shape = (n, *ds[0].shape)
+    ar = np.zeros(shape, dtype=dtype)
+    if progress:
+        it = tqdm.tqdm(ds, ncols=80, desc="DS to array")
+    else:
+        it = ds
+    for i, x in enumerate(it):
+        ar[i] = x
+    return ar
+
+
 def build_dataset(files):
     files = sorted(files)
     solutions = []
@@ -134,7 +147,9 @@ def build_dataset(files):
         with open(f, "rb") as fd:
             solutions.append(pickle.load(fd))
     input_ds = ConcatDataset([SolutionInputDataset(s) for s in solutions])
+    input_ds = torch.tensor(dataset_to_array(input_ds)).float()
     label_ds = ConcatDataset([SolutionLabelDataset(s) for s in solutions])
+    label_ds = torch.tensor(dataset_to_array(label_ds)).float()
     return ComposedDataset([input_ds, label_ds])
 
 
