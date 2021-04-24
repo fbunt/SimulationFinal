@@ -217,13 +217,13 @@ def _validate_dir_path(path):
 def get_parser():
     p = argparse.ArgumentParser()
     p.add_argument(
-        "-b", "--batch_size", type=int, default=100_000, help="Batch size"
+        "-b", "--batch_size", type=int, default=50_000, help="Batch size"
     )
     p.add_argument(
         "-e",
         "--epochs",
         type=int,
-        default=10_000,
+        default=1_000,
         help="Number of training epochs",
     )
     p.add_argument(
