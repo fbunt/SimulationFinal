@@ -51,7 +51,7 @@ def save_solution(out_dir, id_, solution):
         pickle.dump(solution, fd, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-NT = 2500
+NT = 1000
 TF = 5
 TOL = 1e-12
 
@@ -63,7 +63,7 @@ def three_body(id_, out_dir, method="BDF"):
     tspan = (0, TF)
     res = solve_ivp(forward, tspan, y0, method=method, atol=TOL, rtol=TOL)
     if res.t.size > NT:
-        step = res.t.size // NT
+        step = int(np.round(res.t.size / NT))
     else:
         step = 1
     solution = Solution(y0, res.t[::step].copy(), res.y.T[::step].copy())
