@@ -51,22 +51,21 @@ def save_solution(out_dir, id_, solution):
 
 
 NT = 2500
+TF = 5
+TOL = 1e-12
 
 
 def three_body(id_, out_dir, method="BDF"):
     x1, x2, x3 = get_random_static_pos()
     v0 = np.zeros(2 * 3)
     y0 = np.array([*x1, *x2, *x3, *v0])
-    tspan = (0, 10)
-    t = np.random.uniform(0, 10, size=NT)
-    t.sort()
-    t[0] = 0
-    t[-1] = 10
-    # TODO: check for events
-    res = solve_ivp(
-        forward, tspan, y0, method=method, t_eval=t, atol=1e-13, rtol=1e-13
-    )
-    solution = Solution(y0, res.t, res.y.T)
+    tspan = (0, TF)
+    res = solve_ivp(forward, tspan, y0, method=method, atol=TOL, rtol=TOL)
+    if res.t.size > NT:
+        step = res.t.size // NT
+    else:
+        step = 1
+    solution = Solution(y0, res.t[::step].copy(), res.y.T[::step].copy())
     save_solution(out_dir, id_, solution)
 
 
