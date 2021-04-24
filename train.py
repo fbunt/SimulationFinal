@@ -271,10 +271,14 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
     files = glob.glob(os.path.join(data_dir, "*.pkl"))
     train_ds, test_ds = build_train_test_datasets(files, 0.9)
     train_loader = DataLoader(
-        train_ds, batch_size=batch_size, shuffle=True, drop_last=False
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=False,
+        pin_memory=True,
     )
     test_loader = DataLoader(
-        test_ds, batch_size=batch_size, shuffle=False, drop_last=False
+        test_ds, batch_size=batch_size * 2, shuffle=False, drop_last=False
     )
     model = ThreeBodyMLP().cuda()
     opt = torch.optim.Adam(
