@@ -140,6 +140,74 @@ def build_train_test_datasets(files, train_size=0.9):
     return train_ds, test_ds
 
 
+FNAME_MODEL = "model.pt"
+FNAME_MODEL_TMP = "model.pt.tmp"
+FNAME_FULL_SNAPSHOT = "snap_full.pt"
+FNAME_FULL_SNAPSHOT_TMP = "snap_full.pt.tmp"
+SNAP_KEY_EPOCH = "epoch"
+SNAP_KEY_MODEL = "model"
+SNAP_KEY_OPTIMIZER = "optimizer"
+SNAP_KEY_LR_SCHED = "lr_sched"
+SNAP_KEY_CHECK_VAL = "check_val"
+
+
+class SnapshotHandler:
+    def __init__(self, root_dir, model, optimizer, lr_sched):
+        self.root_path = os.path.abspath(root_dir)
+        self.model = model
+        self.opt = optimizer
+        self.lr_sched = lr_sched
+        self.model_path = os.path.join(self.root_path, FNAME_MODEL)
+        self.model_path_tmp = os.path.join(self.root_path, FNAME_MODEL_TMP)
+        self.full_snap_path = os.path.join(self.root_path, FNAME_FULL_SNAPSHOT)
+        self.full_snap_path_tmp = os.path.join(
+            self.root_path, FNAME_FULL_SNAPSHOT_TMP
+        )
+        self.counter = 0
+
+    def save_model(self):
+        # Make sure that there is always a possible recovery mode in case of
+        # early termination during file write.
+        torch.save(self.model.state_dict(), self.model_path_tmp)
+        os.replace(self.model_path_tmp, self.model_path)
+
+    def can_resume(self):
+        return os.path.isfile(self.full_snap_path)
+
+    def take_model_snapshot(self):
+        print("\nTaking snapshot")
+        self.save_model()
+        self.counter += 1
+        return True
+
+    def take_full_snapshot(self, epoch, check_val):
+        snap = {
+            SNAP_KEY_EPOCH: epoch,
+            SNAP_KEY_MODEL: self.model.state_dict(),
+            SNAP_KEY_OPTIMIZER: self.opt.state_dict(),
+            SNAP_KEY_LR_SCHED: self.lr_sched.state_dict(),
+            SNAP_KEY_CHECK_VAL: check_val,
+        }
+        # Make sure that there is always a possible recovery mode in case of
+        # early termination during file write.
+        torch.save(snap, self.full_snap_path_tmp)
+        os.replace(self.full_snap_path_tmp, self.full_snap_path)
+
+    def load_best_model(self):
+        self.model.load_state_dict(torch.load(self.model_path))
+        return self.model
+
+    def load_full_snapshot(self):
+        print("Loading full snapshot")
+        snap = torch.load(self.full_snap_path)
+        epoch = snap[SNAP_KEY_EPOCH]
+        self.model.load_state_dict(snap[SNAP_KEY_MODEL])
+        self.opt.load_state_dict(snap[SNAP_KEY_OPTIMIZER])
+        self.lr_sched.load_state_dict(snap[SNAP_KEY_LR_SCHED])
+        check_val = snap[SNAP_KEY_CHECK_VAL]
+        return epoch, self.model, self.opt, self.lr_sched, check_val
+
+
 def _validate_dir_path(path):
     if os.path.isdir(path):
         return path
@@ -166,6 +234,12 @@ def get_parser():
         help="Learning rate for training",
     )
     p.add_argument(
+        "-R",
+        "--resume",
+        action="store_true",
+        help="causes training to resume from the last saved checkpoint",
+    )
+    p.add_argument(
         "data_dir",
         type=_validate_dir_path,
         help="Directory containing training data",
@@ -173,7 +247,7 @@ def get_parser():
     return p
 
 
-def main(data_dir, batch_size, epochs, learning_rate):
+def main(data_dir, batch_size, epochs, learning_rate, resume=False):
     files = glob.glob(os.path.join(data_dir, "*.pkl"))
     train_ds, test_ds = build_train_test_datasets(files, 0.9)
     train_loader = DataLoader(
@@ -190,14 +264,29 @@ def main(data_dir, batch_size, epochs, learning_rate):
     mstones = np.round(frac_mstones * epochs).astype(int)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, mstones, 0.5)
     logger = SummaryWriter("./logs")
+
+    snap_handler = SnapshotHandler(".", model, opt, sched)
+    resume = resume and snap_handler.can_resume()
     min_loss = np.inf
-    for epoch in range(epochs):
+    last_epoch = 0
+    if resume:
+        (
+            last_epoch,
+            model,
+            opt,
+            sched,
+            min_loss,
+        ) = snap_handler.load_full_snapshot()
+
+    for epoch in range(last_epoch, epochs):
         train(model, train_loader, opt, logger, epoch, epochs)
         test_loss = test(model, test_loader, opt, logger, epoch, epochs)
+        sched.step()
         if min_loss > test_loss:
             min_loss = test_loss
             torch.save(model.state_dict(), "./model.pt")
-        sched.step()
+            snap_handler.take_model_snapshot()
+        snap_handler.take_full_snapshot(epoch, min_loss)
     logger.close()
 
 
