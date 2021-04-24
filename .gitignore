@@ -1,4 +1,3 @@
 data/
-data_bdf/
-data_lsoda/
+data_*/
 logs/
