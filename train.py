@@ -263,7 +263,8 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
     frac_mstones = np.array([0.3, 0.5, 0.7, 0.8, 0.85, 0.95, 0.98])
     mstones = np.round(frac_mstones * epochs).astype(int)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, mstones, 0.5)
-    logger = SummaryWriter("./logs")
+    train_logger = SummaryWriter("./logs/training")
+    test_logger = SummaryWriter("./logs/test")
 
     snap_handler = SnapshotHandler(".", model, opt, sched)
     resume = resume and snap_handler.can_resume()
@@ -279,15 +280,16 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
         ) = snap_handler.load_full_snapshot()
 
     for epoch in range(last_epoch, epochs):
-        train(model, train_loader, opt, logger, epoch, epochs)
-        test_loss = test(model, test_loader, opt, logger, epoch, epochs)
+        train(model, train_loader, opt, train_logger, epoch, epochs)
+        test_loss = test(model, test_loader, opt, test_logger, epoch, epochs)
         sched.step()
         if min_loss > test_loss:
             min_loss = test_loss
             torch.save(model.state_dict(), "./model.pt")
             snap_handler.take_model_snapshot()
         snap_handler.take_full_snapshot(epoch, min_loss)
-    logger.close()
+    train_logger.close()
+    test_logger.close()
 
 
 if __name__ == "__main__":
