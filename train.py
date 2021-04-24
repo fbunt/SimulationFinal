@@ -83,6 +83,7 @@ def run_model(model, data_iterator, optimizer, logger, epoch, is_train):
         loss_sum += loss.item()
     loss_mean = loss_sum / len(data_iterator)
     logger.add_scalar("Loss", loss_mean, epoch)
+    return loss_mean
 
 
 def train(model, dataloader, optimizer, logger, epoch, total_epochs):
@@ -93,7 +94,7 @@ def train(model, dataloader, optimizer, logger, epoch, total_epochs):
         total=len(dataloader),
         desc=f"Train: {epoch + 1}/{total_epochs}",
     )
-    run_model(model, it, optimizer, logger, epoch, False)
+    return run_model(model, it, optimizer, logger, epoch, True)
 
 
 def test(model, dataloader, optimizer, logger, epoch, total_epochs):
