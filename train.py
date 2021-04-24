@@ -217,7 +217,7 @@ def _validate_dir_path(path):
 def get_parser():
     p = argparse.ArgumentParser()
     p.add_argument(
-        "-b", "--batch_size", type=int, default=50_000, help="Batch size"
+        "-b", "--batch_size", type=int, default=100_000, help="Batch size"
     )
     p.add_argument(
         "-e",
