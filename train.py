@@ -68,7 +68,9 @@ class ComposedDataset(Dataset):
         return self.size
 
 
-def run_model(model, data_iterator, optimizer, logger, epoch, is_train):
+def run_model(
+    model, data_iterator, optimizer, gscaler, logger, epoch, is_train
+):
     loss_sum = 0.0
     for (input_data, labels) in data_iterator:
         input_data = input_data.cuda()
@@ -78,6 +80,9 @@ def run_model(model, data_iterator, optimizer, logger, epoch, is_train):
         output = model(input_data)
         loss = l1_loss(output, labels)
         if is_train:
+            # gscaler.scale(loss).backward()
+            # gscaler.step(optimizer)
+            # gscaler.update()
             loss.backward()
             optimizer.step()
         loss_sum += loss.item()
@@ -86,7 +91,7 @@ def run_model(model, data_iterator, optimizer, logger, epoch, is_train):
     return loss_mean
 
 
-def train(model, dataloader, optimizer, logger, epoch, total_epochs):
+def train(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
     model.train()
     it = tqdm.tqdm(
         dataloader,
@@ -94,10 +99,10 @@ def train(model, dataloader, optimizer, logger, epoch, total_epochs):
         total=len(dataloader),
         desc=f"Train: {epoch + 1}/{total_epochs}",
     )
-    return run_model(model, it, optimizer, logger, epoch, True)
+    return run_model(model, it, optimizer, gscaler, logger, epoch, True)
 
 
-def test(model, dataloader, optimizer, logger, epoch, total_epochs):
+def test(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
     model.eval()
     it = tqdm.tqdm(
         dataloader,
@@ -106,7 +111,7 @@ def test(model, dataloader, optimizer, logger, epoch, total_epochs):
         desc=f"-Test: {epoch + 1}/{total_epochs}",
     )
     with torch.no_grad():
-        loss = run_model(model, it, optimizer, logger, epoch, False)
+        loss = run_model(model, it, optimizer, gscaler, logger, epoch, False)
     return loss
 
 
@@ -279,9 +284,14 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
             min_loss,
         ) = snap_handler.load_full_snapshot()
 
+    grad_scaler = torch.cuda.amp.GradScaler()
     for epoch in range(last_epoch, epochs):
-        train(model, train_loader, opt, train_logger, epoch, epochs)
-        test_loss = test(model, test_loader, opt, test_logger, epoch, epochs)
+        train(
+            model, train_loader, opt, grad_scaler, train_logger, epoch, epochs
+        )
+        test_loss = test(
+            model, test_loader, opt, grad_scaler, test_logger, epoch, epochs
+        )
         sched.step()
         if min_loss > test_loss:
             min_loss = test_loss
