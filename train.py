@@ -312,7 +312,7 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
             min_loss = test_loss
             torch.save(model.state_dict(), "./model.pt")
             snap_handler.take_model_snapshot()
-        snap_handler.take_full_snapshot(epoch, min_loss)
+        snap_handler.take_full_snapshot(epoch + 1, min_loss)
     train_logger.close()
     test_logger.close()
 
