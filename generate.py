@@ -1,3 +1,4 @@
+import argparse
 import multiprocessing as mp
 import numpy as np
 import os
@@ -80,22 +81,45 @@ def worker(args):
     three_body(*args)
 
 
-def generate_solutions_parallel(n_max, out_dir, method):
+def generate_solutions_parallel(num_solutions, out_dir, method, cores=16):
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
-    with mp.Pool() as pool:
+    with mp.Pool(cores) as pool:
         for i in tqdm.tqdm(
             pool.imap_unordered(
                 worker,
-                zip(range(n_max), repeat(out_dir), repeat(method)),
-                chunksize=10,
+                zip(range(num_solutions), repeat(out_dir), repeat(method)),
+                chunksize=50,
             ),
             ncols=80,
-            total=n_max,
+            total=num_solutions,
         ):
             pass
 
 
+def get_parser():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "-n",
+        "--num_solutions",
+        default=20_000,
+        type=int,
+        help="Number of solutions to produce",
+    )
+    p.add_argument(
+        "-m", "--method", type=str, default="BDF", help="Solver method"
+    )
+    p.add_argument(
+        "-c",
+        "--cores",
+        type=int,
+        default=os.cpu_count(),
+        help="Number of cores to use",
+    )
+    p.add_argument("out_dir", type=str, help="Output directory for data")
+    return p
+
+
 if __name__ == "__main__":
-    generate_solutions_parallel(40_000, "data_bdf", "BDF")
-    generate_solutions_parallel(40_000, "data_lsoda", "LSODA")
+    args = get_parser().parse_args()
+    generate_solutions_parallel(**vars(args))
