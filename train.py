@@ -237,7 +237,7 @@ def _validate_dir_path(path):
 def get_parser():
     p = argparse.ArgumentParser()
     p.add_argument(
-        "-b", "--batch_size", type=int, default=50_000, help="Batch size"
+        "-b", "--batch_size", type=int, default=5_000, help="Batch size"
     )
     p.add_argument(
         "-e",
@@ -250,7 +250,7 @@ def get_parser():
         "-l",
         "--learning_rate",
         type=float,
-        default=1e-4,
+        default=1e-5,
         help="Learning rate for training",
     )
     p.add_argument(
@@ -278,11 +278,11 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
         pin_memory=True,
     )
     test_loader = DataLoader(
-        test_ds, batch_size=batch_size * 2, shuffle=False, drop_last=False
+        test_ds, batch_size=batch_size * 4, shuffle=False, drop_last=False
     )
     model = ThreeBodyMLP().cuda()
     opt = torch.optim.Adam(
-        model.parameters(), lr=learning_rate, weight_decay=1e-2
+        model.parameters(), lr=learning_rate, weight_decay=1e-3
     )
     frac_mstones = np.array([0.3, 0.5, 0.7, 0.8, 0.85, 0.95, 0.98])
     mstones = np.round(frac_mstones * epochs).astype(int)
