@@ -89,7 +89,7 @@ def generate_solutions_parallel(num_solutions, out_dir, method, cores=16):
             pool.imap_unordered(
                 worker,
                 zip(range(num_solutions), repeat(out_dir), repeat(method)),
-                chunksize=50,
+                chunksize=10,
             ),
             ncols=80,
             total=num_solutions,
