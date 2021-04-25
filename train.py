@@ -68,9 +68,7 @@ class ComposedDataset(Dataset):
         return self.size
 
 
-def run_model(
-    model, data_iterator, optimizer, gscaler, logger, epoch, is_train
-):
+def run_model(model, data_iterator, optimizer, gscaler, is_train):
     loss_sum = 0.0
     for (input_data, labels) in data_iterator:
         input_data = input_data.cuda()
@@ -87,7 +85,6 @@ def run_model(
             optimizer.step()
         loss_sum += loss.item()
     loss_mean = loss_sum / len(data_iterator)
-    logger.add_scalar("Loss", loss_mean, epoch)
     return loss_mean
 
 
@@ -99,7 +96,9 @@ def train(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
         total=len(dataloader),
         desc=f"Train: {epoch + 1}/{total_epochs}",
     )
-    return run_model(model, it, optimizer, gscaler, logger, epoch, True)
+    loss = run_model(model, it, optimizer, gscaler, True)
+    logger.add_scalar("Loss", loss, epoch)
+    return loss
 
 
 def test(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
@@ -111,8 +110,9 @@ def test(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
         desc=f"-Test: {epoch + 1}/{total_epochs}",
     )
     with torch.no_grad():
-        loss = run_model(model, it, optimizer, gscaler, logger, epoch, False)
-    return loss
+        loss = run_model(model, it, optimizer, gscaler, False)
+        logger.add_scalar("Loss", loss, epoch)
+        return loss
 
 
 def train_test_split(x, train_size):
@@ -305,6 +305,9 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
 
     grad_scaler = torch.cuda.amp.GradScaler()
     for epoch in range(last_epoch, epochs):
+        train_logger.add_scalar(
+            "learning_rate", next(iter(opt.param_groups))["lr"], epoch
+        )
         train(
             model, train_loader, opt, grad_scaler, train_logger, epoch, epochs
         )
