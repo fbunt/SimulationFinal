@@ -68,15 +68,31 @@ class ComposedDataset(Dataset):
         return self.size
 
 
+loss_func = l1_loss
+
+
 def run_model(model, data_iterator, optimizer, gscaler, is_train):
     loss_sum = 0.0
     for (input_data, labels) in data_iterator:
         input_data = input_data.cuda()
         labels = labels.cuda()
+        # Initial conditions (t = 0)
+        initial = input_data[..., 0] == 0
+        non_initial = ~initial
         if is_train:
             model.zero_grad()
         output = model(input_data)
-        loss = l1_loss(output, labels)
+        xout = output[..., :4]
+        xlabels = labels[..., :4]
+        vout = output[..., 4:]
+        vlabels = labels[..., 4:]
+        # Position loss
+        loss = loss_func(xout[non_initial], xlabels[non_initial])
+        # Velocity loss
+        loss += loss_func(vout[non_initial], vlabels[non_initial]) * 1e-1
+        # Initial condition loss
+        if initial.any():
+            loss += loss_func(output[initial], labels[initial]) * 1e3
         if is_train:
             # gscaler.scale(loss).backward()
             # gscaler.step(optimizer)
