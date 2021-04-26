@@ -1,3 +1,7 @@
 data/
 data_*/
 logs/
+samples*
+*.pt
+*.gz
+*.tar
