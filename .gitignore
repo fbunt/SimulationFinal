@@ -1,6 +1,7 @@
 data/
 data_*/
 logs/
+v1/
 samples*
 *.pt
 *.gz
