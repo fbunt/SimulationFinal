@@ -51,9 +51,11 @@ def get_model_solution(model, ds):
     return Solution(y0, t, y)
 
 
-def get_model_out_name(f):
-    base = os.path.splitext(f)[0]
-    return f"{base}-model.pkl"
+def get_model_out_name(out_dir, f):
+    basename = os.path.basename(f)
+    base = os.path.splitext(basename)[0]
+    name = f"{base}-model.pkl"
+    return os.path.join(out_dir, name)
 
 
 def get_parser():
@@ -62,15 +64,18 @@ def get_parser():
     p.add_argument(
         "data_dir", type=str, help="Directory with solutions to load"
     )
+    p.add_argument("out_dir", type=str, help="Output directory")
     return p
 
 
-def main(model_path, data_dir):
+def main(model_path, data_dir, out_dir):
+    if not os.path.isdir(out_dir):
+        os.mak(out_dir, exist_ok=True)
     model = load_model(model_path)
     sols = load_solutions(data_dir)
     sols = {f: (s.y0, SolutionInputDataset(s)) for f, s in sols.items()}
     model_sols = {
-        get_model_out_name(f): get_model_solution(model, *s)
+        get_model_out_name(out_dir, f): get_model_solution(model, *s)
         for f, s in sols.items()
     }
     save_solutions(model_sols)
