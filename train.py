@@ -87,12 +87,12 @@ def run_model(model, data_iterator, optimizer, gscaler, is_train):
         vout = output[..., 4:]
         vlabels = labels[..., 4:]
         # Position loss
-        loss = loss_func(xout[non_initial], xlabels[non_initial])
+        loss = loss_func(xout[non_initial], xlabels[non_initial]) * 1e1
         # Velocity loss
-        loss += loss_func(vout[non_initial], vlabels[non_initial]) * 1e-1
+        loss += loss_func(vout[non_initial], vlabels[non_initial])
         # Initial condition loss
         if initial.any():
-            loss += loss_func(output[initial], labels[initial]) * 1e3
+            loss += loss_func(output[initial], labels[initial]) * 1e1
         if is_train:
             # gscaler.scale(loss).backward()
             # gscaler.step(optimizer)
