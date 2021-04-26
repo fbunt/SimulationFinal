@@ -18,31 +18,17 @@ def solution_to_bodies(sol):
     return bdy1, bdy2, bdy3
 
 
-def get_min_max(bodies):
-    xmin = np.min([b.x.min() for b in bodies])
-    xmax = np.max([b.x.max() for b in bodies])
-    ymin = np.min([b.y.min() for b in bodies])
-    ymax = np.max([b.y.max() for b in bodies])
-    print(xmin, xmax, ymin, ymax)
-    return xmin, xmax, ymin, ymax
-
-
-class SolutionAnimation:
-    def __init__(self, solution, figsize=None, interval=10):
+class SingleSolutionPlotter:
+    def __init__(self, solution, fig):
         self.sol = solution
+        self.fig = fig
         self.bodies = solution_to_bodies(solution)
         self.bdy1, self.bdy2, self.bdy3 = self.bodies
 
-        self.interval = interval
-
-        plt.style.use("dark_background")
-        self.fig = plt.figure(figsize=figsize)
         self.ax = self.fig.add_subplot(111)
         self.ax.axes.get_xaxis().set_visible(False)
         self.ax.axes.get_yaxis().set_visible(False)
         plt.axis("equal")
-        self.interval = interval
-        self.paused = False
 
     def init(self):
         self.artists = []
@@ -77,6 +63,28 @@ class SolutionAnimation:
             pos.set_data(b.x[i : i + 1], b.y[i : i + 1])
         return self.artists
 
+    def __len__(self):
+        return self.sol.t.size
+
+
+class SolutionAnimation:
+    def __init__(self, solutions, figsize=None, interval=10):
+        plt.style.use("dark_background")
+        self.fig = plt.figure(figsize=figsize)
+        if len(solutions) == 1:
+            self.plotter = SingleSolutionPlotter(solutions[0], self.fig)
+        else:
+            pass
+
+        self.interval = interval
+        self.paused = False
+
+    def init(self):
+        return self.plotter.init()
+
+    def update(self, i):
+        return self.plotter.update(i)
+
     def on_click(self, event):
         """Toggle play/pause with space bar. Handy for non-jupyter runs."""
         if event.key != " ":
@@ -93,7 +101,7 @@ class SolutionAnimation:
         self.ani = FuncAnimation(
             self.fig,
             self.update,
-            frames=len(self.sol.t),
+            frames=len(self.plotter),
             init_func=self.init,
             interval=self.interval,
             repeat=False,
@@ -116,5 +124,5 @@ def get_parser():
 if __name__ == "__main__":
     args = get_parser().parse_args()
     solution = load_data(args.path)
-    ani = SolutionAnimation(solution)
+    ani = SolutionAnimation([solution])
     ani.run()
