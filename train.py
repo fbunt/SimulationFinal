@@ -5,7 +5,7 @@ import os
 import pickle
 import torch
 import tqdm
-from torch.nn.functional import l1_loss
+from torch.nn.functional import mse_loss
 from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -68,7 +68,7 @@ class ComposedDataset(Dataset):
         return self.size
 
 
-loss_func = l1_loss
+loss_func = mse_loss
 
 
 def run_model(model, data_iterator, optimizer, gscaler, is_train):
