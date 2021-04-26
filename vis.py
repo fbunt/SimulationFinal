@@ -23,32 +23,29 @@ class SingleSolutionPlotter:
         self.sol = solution
         self.fig = fig
         self.bodies = solution_to_bodies(solution)
-        self.bdy1, self.bdy2, self.bdy3 = self.bodies
 
         self.ax = self.fig.add_subplot(111)
         self.ax.axes.get_xaxis().set_visible(False)
         self.ax.axes.get_yaxis().set_visible(False)
         plt.axis("equal")
+        self.colors = ["#d62728", "#bcbd22", "#17becf"]
 
     def init(self):
         self.artists = []
         self.traces = []
         self.tails = []
         self.positions = []
-        self.body_colors = []
         # Plot body traces
         for b in self.bodies:
             (trace,) = self.ax.plot(b.x, b.y, color="gray", lw=0.5)
             self.traces.append(trace)
         # Plot trailing tail
-        for b in self.bodies:
-            (tail,) = self.ax.plot(b.x[:1], b.y[:1])
-            color = tail.get_color()
-            self.body_colors.append(color)
+        for b, c in zip(self.bodies, self.colors):
+            (tail,) = self.ax.plot(b.x[:1], b.y[:1], color=c)
             self.artists.append(tail)
             self.tails.append(tail)
         # Plot bodies
-        for b, c in zip(self.bodies, self.body_colors):
+        for b, c in zip(self.bodies, self.colors):
             (pos,) = self.ax.plot(b.x[:1], b.y[:1], "o", color=c)
             self.artists.append(pos)
             self.positions.append(pos)
@@ -67,6 +64,66 @@ class SingleSolutionPlotter:
         return self.sol.t.size
 
 
+class SolutionComparePlotter:
+    def __init__(self, solutions, fig):
+        # Correct solution and model solution
+        self.sol, self.msol = solutions
+        assert self.sol.t.size == self.msol.t.size
+        self.fig = fig
+        self.bodies = solution_to_bodies(self.sol)
+        self.mbodies = solution_to_bodies(self.msol)
+
+        self.ax = self.fig.add_subplot(111)
+        self.ax.axes.get_xaxis().set_visible(False)
+        self.ax.axes.get_yaxis().set_visible(False)
+        plt.axis("equal")
+        self.colors = ["#d62728", "#bcbd22", "#17becf"]
+
+    def init(self):
+        self.artists = []
+        self.traces = []
+        self.mtraces = []
+        self.tails = []
+        self.positions = []
+        self.mpositions = []
+        # Plot body traces
+        for b, c in zip(self.bodies, self.colors):
+            (trace,) = self.ax.plot(b.x, b.y, color=c, lw=0.5)
+            self.traces.append(trace)
+        for b, c in zip(self.mbodies, self.colors):
+            (trace,) = self.ax.plot(b.x, b.y, "--", color=c, alpha=0.5, lw=0.5)
+            self.traces.append(trace)
+        # Plot trailing tail
+        for b, c in zip(self.bodies, self.colors):
+            (tail,) = self.ax.plot(b.x[:1], b.y[:1], color=c)
+            self.artists.append(tail)
+            self.tails.append(tail)
+        # Plot bodies
+        for b, c in zip(self.bodies, self.colors):
+            (pos,) = self.ax.plot(b.x[:1], b.y[:1], "o", color=c)
+            self.artists.append(pos)
+            self.positions.append(pos)
+        for b, c in zip(self.mbodies, self.colors):
+            (pos,) = self.ax.plot(b.x[:1], b.y[:1], "<", color=c, alpha=0.7)
+            self.artists.append(pos)
+            self.mpositions.append(pos)
+        return self.artists
+
+    def update(self, i):
+        for b, tail in zip(self.bodies, self.tails):
+            tail.set_data(
+                b.x[max(0, i - 20) : i + 1], b.y[max(0, i - 20) : i + 1]
+            )
+        for b, pos in zip(self.bodies, self.positions):
+            pos.set_data(b.x[i : i + 1], b.y[i : i + 1])
+        for b, pos in zip(self.mbodies, self.mpositions):
+            pos.set_data(b.x[i : i + 1], b.y[i : i + 1])
+        return self.artists
+
+    def __len__(self):
+        return self.sol.t.size
+
+
 class SolutionAnimation:
     def __init__(self, solutions, figsize=None, interval=10):
         plt.style.use("dark_background")
@@ -74,7 +131,7 @@ class SolutionAnimation:
         if len(solutions) == 1:
             self.plotter = SingleSolutionPlotter(solutions[0], self.fig)
         else:
-            pass
+            self.plotter = SolutionComparePlotter(solutions, self.fig)
 
         self.interval = interval
         self.paused = False
@@ -117,12 +174,12 @@ def load_data(fname):
 
 def get_parser():
     p = argparse.ArgumentParser()
-    p.add_argument("path", help="Path to solution file")
+    p.add_argument("paths", nargs="+", help="Path(s) to solution file(s)")
     return p
 
 
 if __name__ == "__main__":
     args = get_parser().parse_args()
-    solution = load_data(args.path)
-    ani = SolutionAnimation([solution])
+    solutions = [load_data(p) for p in args.paths]
+    ani = SolutionAnimation(solutions)
     ani.run()
