@@ -250,6 +250,12 @@ def _validate_dir_path(path):
     raise IOError(f"Directory path does not exist: '{path}'")
 
 
+def _validate_file_path(path):
+    if os.path.isfile(path):
+        return path
+    raise IOError(f"File path does not exist: '{path}'")
+
+
 def get_parser():
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -270,6 +276,13 @@ def get_parser():
         help="Learning rate for training",
     )
     p.add_argument(
+        "-m",
+        "--model_path",
+        type=_validate_file_path,
+        default=None,
+        help="A model to load as a starting point",
+    )
+    p.add_argument(
         "-R",
         "--resume",
         action="store_true",
@@ -283,7 +296,9 @@ def get_parser():
     return p
 
 
-def main(data_dir, batch_size, epochs, learning_rate, resume=False):
+def main(
+    data_dir, batch_size, epochs, learning_rate, model_path=None, resume=False
+):
     files = glob.glob(os.path.join(data_dir, "*.pkl"))
     train_ds, test_ds = build_train_test_datasets(files, 0.9)
     train_loader = DataLoader(
@@ -318,6 +333,9 @@ def main(data_dir, batch_size, epochs, learning_rate, resume=False):
             sched,
             min_loss,
         ) = snap_handler.load_full_snapshot()
+    if model_path is not None:
+        assert not resume, "Cannot load starting model and resume at same time"
+        model.load_state_dict(torch.load(model_path))
 
     grad_scaler = torch.cuda.amp.GradScaler()
     for epoch in range(last_epoch, epochs):
