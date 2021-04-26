@@ -1,17 +1,17 @@
 import argparse
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
+from IPython.display import HTML
 from collections import namedtuple
 from matplotlib.animation import FuncAnimation
 
 from generate import Solution
 
 
-Body = namedtuple("Body", ("x", "y", "vx", "vy"))
-
-
 def solution_to_bodies(sol):
+    Body = namedtuple("Body", ("x", "y", "vx", "vy"))
     bdy1 = Body(sol.y[:, 0], sol.y[:, 1], sol.y[:, 6], sol.y[:, 7])
     bdy2 = Body(sol.y[:, 2], sol.y[:, 3], sol.y[:, 8], sol.y[:, 9])
     bdy3 = Body(sol.y[:, 4], sol.y[:, 5], sol.y[:, 10], sol.y[:, 11])
@@ -104,7 +104,7 @@ class SolutionComparePlotter:
             self.artists.append(pos)
             self.positions.append(pos)
         for b, c in zip(self.mbodies, self.colors):
-            (pos,) = self.ax.plot(b.x[:1], b.y[:1], "<", color=c, alpha=0.7)
+            (pos,) = self.ax.plot(b.x[:1], b.y[:1], "*", color=c, alpha=0.7)
             self.artists.append(pos)
             self.mpositions.append(pos)
         return self.artists
@@ -125,7 +125,7 @@ class SolutionComparePlotter:
 
 
 class SolutionAnimation:
-    def __init__(self, solutions, figsize=None, interval=10):
+    def __init__(self, solutions, figsize=None, interval=10, notebook=True):
         plt.style.use("dark_background")
         self.fig = plt.figure(figsize=figsize)
         if len(solutions) == 1:
@@ -135,6 +135,7 @@ class SolutionAnimation:
 
         self.interval = interval
         self.paused = False
+        self.notebook = notebook
 
     def init(self):
         return self.plotter.init()
@@ -164,7 +165,15 @@ class SolutionAnimation:
             repeat=False,
             blit=True,
         )
-        plt.show()
+        if not self.notebook:
+            plt.show()
+        else:
+            plt.close(self.fig)
+        mpl.rcParams.update(mpl.rcParamsDefault)
+        return self
+
+    def to_html(self):
+        return HTML(self.ani.to_html5_video())
 
 
 def load_data(fname):
@@ -181,5 +190,5 @@ def get_parser():
 if __name__ == "__main__":
     args = get_parser().parse_args()
     solutions = [load_data(p) for p in args.paths]
-    ani = SolutionAnimation(solutions)
+    ani = SolutionAnimation(solutions, notebook=False)
     ani.run()
