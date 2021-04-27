@@ -46,6 +46,17 @@ class SolutionLabelDataset(Dataset):
         return len(self.y)
 
 
+class SolutionX3LabelDataset(Dataset):
+    def __init__(self, solution):
+        self.y = solution.y[:, 4:6]
+
+    def __getitem__(self, idx):
+        return self.y[idx]
+
+    def __len__(self):
+        return len(self.y)
+
+
 class SolutionPositionLabelDataset(Dataset):
     def __init__(self, label_ds):
         self.ds = label_ds
@@ -95,12 +106,10 @@ loss_func = mse_loss
 
 def train_model_full(model, data_iterator, optimizer, gscaler, is_train):
     loss_sum = 0.0
-    for (input_data, labels) in data_iterator:
+    for (input_data, labels, x3_labels) in data_iterator:
         input_data = input_data.cuda()
         labels = labels.cuda()
-        # Initial conditions (t = 0)
-        initial = input_data[..., 0] == 0
-        non_initial = ~initial
+        x3_labels = x3_labels.cuda()
         if is_train:
             model.zero_grad()
         output = model(input_data)
@@ -109,12 +118,12 @@ def train_model_full(model, data_iterator, optimizer, gscaler, is_train):
         vout = output[..., 4:]
         vlabels = labels[..., 4:]
         # Position loss
-        loss = loss_func(xout[non_initial], xlabels[non_initial]) * 1e1
+        loss = loss_func(xout, xlabels) * 1e1
         # Velocity loss
-        loss += loss_func(vout[non_initial], vlabels[non_initial])
-        # Initial condition loss
-        if initial.any():
-            loss += loss_func(output[initial], labels[initial]) * 1e1
+        loss += loss_func(vout, vlabels)
+        # x3 loss
+        x3 = -xout[..., :2] - xout[..., 2:]
+        loss += loss_func(x3, x3_labels) * 2e1
         if is_train:
             # gscaler.scale(loss).backward()
             # gscaler.step(optimizer)
@@ -128,20 +137,17 @@ def train_model_full(model, data_iterator, optimizer, gscaler, is_train):
 
 def train_model(model, data_iterator, optimizer, gscaler, is_train):
     loss_sum = 0.0
-    for (input_data, labels) in data_iterator:
+    for (input_data, labels, x3_labels) in data_iterator:
         input_data = input_data.cuda()
         labels = labels.cuda()
-        # Initial conditions (t = 0)
-        initial = input_data[..., 0] == 0
-        non_initial = ~initial
+        x3_labels = x3_labels.cuda()
         if is_train:
             model.zero_grad()
         output = model(input_data)
         # Position loss
-        loss = loss_func(output[non_initial], labels[non_initial])
-        # Initial condition loss
-        if initial.any():
-            loss += loss_func(output[initial], labels[initial]) * 1e1
+        loss = loss_func(output, labels)
+        x3 = -output[..., :2] - output[..., 2:]
+        loss += loss_func(x3, x3_labels) * 2
         if is_train:
             # gscaler.scale(loss).backward()
             # gscaler.step(optimizer)
@@ -238,13 +244,16 @@ def build_dataset(files, subset):
     input_ds = ConcatDataset([SolutionInputDataset(s) for s in solutions])
     input_ds = torch.tensor(dataset_to_array(input_ds)).float()
     label_ds = [SolutionLabelDataset(s) for s in solutions]
+    x3_label_ds = [SolutionX3LabelDataset(s) for s in solutions]
     if subset == "position":
         label_ds = [SolutionPositionLabelDataset(ds) for ds in label_ds]
     elif subset == "velocity":
         label_ds = [SolutionVelocityLabelDataset(ds) for ds in label_ds]
     label_ds = ConcatDataset(label_ds)
     label_ds = torch.tensor(dataset_to_array(label_ds)).float()
-    return ComposedDataset([input_ds, label_ds])
+    x3_label_ds = ConcatDataset(x3_label_ds)
+    x3_label_ds = torch.tensor(dataset_to_array(x3_label_ds)).float()
+    return ComposedDataset([input_ds, label_ds, x3_label_ds])
 
 
 def build_train_test_datasets(files, subset, train_size=0.9):
@@ -398,7 +407,7 @@ def main(
         pin_memory=True,
     )
     test_loader = DataLoader(
-        test_ds, batch_size=batch_size * 8, shuffle=False, drop_last=False
+        test_ds, batch_size=batch_size * 4, shuffle=False, drop_last=False
     )
     n_out = 10
     if subset == "position":
