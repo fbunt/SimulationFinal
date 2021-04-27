@@ -46,6 +46,28 @@ class SolutionLabelDataset(Dataset):
         return len(self.y)
 
 
+class SolutionPositionLabelDataset(Dataset):
+    def __init__(self, label_ds):
+        self.ds = label_ds
+
+    def __getitem__(self, idx):
+        return self.ds[idx, :4]
+
+    def __len__(self):
+        return len(self.ds)
+
+
+class SolutionVelocityLabelDataset(Dataset):
+    def __init__(self, label_ds):
+        self.ds = label_ds
+
+    def __getitem__(self, idx):
+        return self.ds[idx, 4:]
+
+    def __len__(self):
+        return len(self.ds)
+
+
 class ComposedDataset(Dataset):
     """Passes a query index on to a set of datasets and composses the results
     into a list.
@@ -71,7 +93,7 @@ class ComposedDataset(Dataset):
 loss_func = mse_loss
 
 
-def run_model(model, data_iterator, optimizer, gscaler, is_train):
+def train_model_full(model, data_iterator, optimizer, gscaler, is_train):
     loss_sum = 0.0
     for (input_data, labels) in data_iterator:
         input_data = input_data.cuda()
@@ -104,7 +126,43 @@ def run_model(model, data_iterator, optimizer, gscaler, is_train):
     return loss_mean
 
 
-def train(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
+def train_model(model, data_iterator, optimizer, gscaler, is_train):
+    loss_sum = 0.0
+    for (input_data, labels) in data_iterator:
+        input_data = input_data.cuda()
+        labels = labels.cuda()
+        # Initial conditions (t = 0)
+        initial = input_data[..., 0] == 0
+        non_initial = ~initial
+        if is_train:
+            model.zero_grad()
+        output = model(input_data)
+        # Position loss
+        loss = loss_func(output[non_initial], labels[non_initial])
+        # Initial condition loss
+        if initial.any():
+            loss += loss_func(output[initial], labels[initial]) * 1e1
+        if is_train:
+            # gscaler.scale(loss).backward()
+            # gscaler.step(optimizer)
+            # gscaler.update()
+            loss.backward()
+            optimizer.step()
+        loss_sum += loss.item()
+    loss_mean = loss_sum / len(data_iterator)
+    return loss_mean
+
+
+def train(
+    model,
+    dataloader,
+    optimizer,
+    gscaler,
+    is_full,
+    logger,
+    epoch,
+    total_epochs,
+):
     model.train()
     it = tqdm.tqdm(
         dataloader,
@@ -112,12 +170,24 @@ def train(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
         total=len(dataloader),
         desc=f"Train: {epoch + 1}/{total_epochs}",
     )
-    loss = run_model(model, it, optimizer, gscaler, True)
+    if is_full:
+        loss = train_model_full(model, it, optimizer, gscaler, True)
+    else:
+        loss = train_model(model, it, optimizer, gscaler, True)
     logger.add_scalar("Loss", loss, epoch)
     return loss
 
 
-def test(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
+def test(
+    model,
+    dataloader,
+    optimizer,
+    gscaler,
+    is_full,
+    logger,
+    epoch,
+    total_epochs,
+):
     model.eval()
     it = tqdm.tqdm(
         dataloader,
@@ -126,7 +196,10 @@ def test(model, dataloader, optimizer, gscaler, logger, epoch, total_epochs):
         desc=f"-Test: {epoch + 1}/{total_epochs}",
     )
     with torch.no_grad():
-        loss = run_model(model, it, optimizer, gscaler, False)
+        if is_full:
+            loss = train_model_full(model, it, optimizer, gscaler, False)
+        else:
+            loss = train_model(model, it, optimizer, gscaler, False)
         logger.add_scalar("Loss", loss, epoch)
         return loss
 
@@ -156,7 +229,7 @@ def dataset_to_array(ds, dtype=float, progress=True):
     return ar
 
 
-def build_dataset(files):
+def build_dataset(files, subset):
     files = sorted(files)
     solutions = []
     for f in files:
@@ -164,15 +237,20 @@ def build_dataset(files):
             solutions.append(pickle.load(fd))
     input_ds = ConcatDataset([SolutionInputDataset(s) for s in solutions])
     input_ds = torch.tensor(dataset_to_array(input_ds)).float()
-    label_ds = ConcatDataset([SolutionLabelDataset(s) for s in solutions])
+    label_ds = [SolutionLabelDataset(s) for s in solutions]
+    if subset == "position":
+        label_ds = [SolutionPositionLabelDataset(ds) for ds in label_ds]
+    elif subset == "velocity":
+        label_ds = [SolutionVelocityLabelDataset(ds) for ds in label_ds]
+    label_ds = ConcatDataset(label_ds)
     label_ds = torch.tensor(dataset_to_array(label_ds)).float()
     return ComposedDataset([input_ds, label_ds])
 
 
-def build_train_test_datasets(files, train_size=0.9):
+def build_train_test_datasets(files, subset, train_size=0.9):
     train_files, test_files = train_test_split(files, train_size)
-    train_ds = build_dataset(train_files)
-    test_ds = build_dataset(test_files)
+    train_ds = build_dataset(train_files, subset)
+    test_ds = build_dataset(test_files, subset)
     return train_ds, test_ds
 
 
@@ -289,6 +367,11 @@ def get_parser():
         help="causes training to resume from the last saved checkpoint",
     )
     p.add_argument(
+        "subset",
+        type=str,
+        help="The subset to train on: {full, position, velocity}.",
+    )
+    p.add_argument(
         "data_dir",
         type=_validate_dir_path,
         help="Directory containing training data",
@@ -297,10 +380,16 @@ def get_parser():
 
 
 def main(
-    data_dir, batch_size, epochs, learning_rate, model_path=None, resume=False
+    data_dir,
+    batch_size,
+    epochs,
+    learning_rate,
+    subset,
+    model_path=None,
+    resume=False,
 ):
     files = glob.glob(os.path.join(data_dir, "*.pkl"))
-    train_ds, test_ds = build_train_test_datasets(files, 0.9)
+    train_ds, test_ds = build_train_test_datasets(files, subset, 0.9)
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
@@ -309,9 +398,14 @@ def main(
         pin_memory=True,
     )
     test_loader = DataLoader(
-        test_ds, batch_size=batch_size * 4, shuffle=False, drop_last=False
+        test_ds, batch_size=batch_size * 8, shuffle=False, drop_last=False
     )
-    model = ThreeBodyMLP().cuda()
+    n_out = 10
+    if subset == "position":
+        n_out = 4
+    elif subset == "velocity":
+        n_out = 6
+    model = ThreeBodyMLP(n_out=n_out).cuda()
     opt = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=1e-3
     )
@@ -338,15 +432,30 @@ def main(
         model.load_state_dict(torch.load(model_path))
 
     grad_scaler = torch.cuda.amp.GradScaler()
+    is_full = subset == "full"
     for epoch in range(last_epoch, epochs):
         train_logger.add_scalar(
             "learning_rate", next(iter(opt.param_groups))["lr"], epoch
         )
         train(
-            model, train_loader, opt, grad_scaler, train_logger, epoch, epochs
+            model,
+            train_loader,
+            opt,
+            grad_scaler,
+            is_full,
+            train_logger,
+            epoch,
+            epochs,
         )
         test_loss = test(
-            model, test_loader, opt, grad_scaler, test_logger, epoch, epochs
+            model,
+            test_loader,
+            opt,
+            grad_scaler,
+            is_full,
+            test_logger,
+            epoch,
+            epochs,
         )
         sched.step()
         if min_loss > test_loss:
