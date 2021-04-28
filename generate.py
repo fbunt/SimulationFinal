@@ -3,6 +3,7 @@ import multiprocessing as mp
 import numpy as np
 import os
 import pickle
+import queue
 import random
 import tqdm
 from collections import namedtuple
@@ -56,7 +57,7 @@ TF = 5
 TOL = 1e-12
 
 
-def three_body(id_, out_dir, method="BDF"):
+def three_body(method="BDF"):
     x1, x2, x3 = get_random_static_pos()
     v0 = np.zeros(2 * 3)
     y0 = np.array([*x1, *x2, *x3, *v0])
@@ -67,7 +68,20 @@ def three_body(id_, out_dir, method="BDF"):
     else:
         step = 1
     solution = Solution(y0, res.t[::step].copy(), res.y.T[::step].copy())
-    save_solution(out_dir, id_, solution)
+    return solution
+
+
+def three_body_parallel(id_q, out_dir, method):
+    solution = three_body(method)
+    if solution.t[-1] >= TF * 0.99:
+        try:
+            id_ = id_q.get_nowait()
+            save_solution(out_dir, id_, solution)
+            return True
+        except (ValueError, OSError, queue.Empty):
+            return False
+    else:
+        return False
 
 
 def generate_solutions(n_max, out_dir, method):
@@ -78,23 +92,35 @@ def generate_solutions(n_max, out_dir, method):
 
 
 def worker(args):
-    three_body(*args)
+    return three_body_parallel(worker.id_q, *args)
+
+
+def worker_init(q):
+    # Make q accessible to the worker func
+    worker.id_q = q
 
 
 def generate_solutions_parallel(num_solutions, out_dir, method, cores=16):
     if not os.path.isdir(out_dir):
         os.mkdir(out_dir)
-    with mp.Pool(cores) as pool:
-        for i in tqdm.tqdm(
-            pool.imap_unordered(
-                worker,
-                zip(range(num_solutions), repeat(out_dir), repeat(method)),
-                chunksize=10,
-            ),
-            ncols=80,
-            total=num_solutions,
+    id_q = mp.Queue(num_solutions)
+    for i in range(num_solutions):
+        id_q.put_nowait(i)
+    with mp.Pool(cores, worker_init, [id_q]) as pool, tqdm.tqdm(
+        ncols=80, total=num_solutions
+    ) as pbar:
+        count = 0
+        for result in pool.imap_unordered(
+            worker,
+            zip(repeat(out_dir), repeat(method)),
+            chunksize=10,
         ):
-            pass
+            if result:
+                count += 1
+                pbar.update(1)
+                if count >= num_solutions:
+                    break
+        id_q.close()
 
 
 def get_parser():
