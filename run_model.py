@@ -6,12 +6,13 @@ import pickle
 import torch
 
 from generate import Solution
-from model import ThreeBodyMLP
+from model import ThreeBodyMLP, ThreeBodyMLPSkip
 from train import SolutionInputDataset, dataset_to_array
 
 
-def load_model(path, n_out):
-    model = ThreeBodyMLP(n_out).cuda()
+def load_model(path, n_out, skip=False):
+    model_class = ThreeBodyMLPSkip if skip else ThreeBodyMLP
+    model = model_class(n_out).cuda()
     try:
         model.load_state_dict(torch.load(path))
     except RuntimeError:
@@ -53,7 +54,7 @@ def get_model_solution(model, ds):
     y[:, 2] = x2x
     y[:, 3] = x2y
     y[:, 4] = -x1x - x2x
-    y[:, 5] = -x1y - x2x
+    y[:, 5] = -x1y - x2y
     if len(vs) > 0:
         y[:, 6:] = np.array(vs).T
     return Solution(y0, t, y)
@@ -68,6 +69,9 @@ def get_model_out_name(out_dir, f):
 
 def get_parser():
     p = argparse.ArgumentParser()
+    p.add_argument(
+        "-s", "--skip", action="store_true", help="Use model with skips"
+    )
     p.add_argument("model_path", type=str, help="Model location")
     p.add_argument("n_out", type=int, help="Size of model output")
     p.add_argument(
@@ -77,10 +81,10 @@ def get_parser():
     return p
 
 
-def main(model_path, n_out, data_dir, out_dir):
+def main(model_path, n_out, data_dir, out_dir, skip):
     if not os.path.isdir(out_dir):
         os.mak(out_dir, exist_ok=True)
-    model = load_model(model_path, n_out)
+    model = load_model(model_path, n_out, skip)
     sols = load_solutions(data_dir)
     sols = {f: SolutionInputDataset(s) for f, s in sols.items()}
     model_sols = {

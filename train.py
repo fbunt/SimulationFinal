@@ -10,7 +10,7 @@ from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from generate import Solution
-from model import ThreeBodyMLP
+from model import ThreeBodyMLP, ThreeBodyMLPSkip
 
 
 class SolutionInputDataset(Dataset):
@@ -376,6 +376,9 @@ def get_parser():
         help="causes training to resume from the last saved checkpoint",
     )
     p.add_argument(
+        "-s", "--skip", action="store_true", help="Use skip connection model"
+    )
+    p.add_argument(
         "subset",
         type=str,
         help="The subset to train on: {full, position, velocity}.",
@@ -394,6 +397,7 @@ def main(
     epochs,
     learning_rate,
     subset,
+    skip,
     model_path=None,
     resume=False,
 ):
@@ -414,7 +418,8 @@ def main(
         n_out = 4
     elif subset == "velocity":
         n_out = 6
-    model = ThreeBodyMLP(n_out=n_out).cuda()
+    model_class = ThreeBodyMLPSkip if skip else ThreeBodyMLP
+    model = model_class(n_out=n_out).cuda()
     opt = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=1e-3
     )
