@@ -5,7 +5,7 @@ import os
 import pickle
 import torch
 import tqdm
-from torch.nn.functional import mse_loss
+from torch.nn.functional import l1_loss, mse_loss
 from torch.utils.data import ConcatDataset, Dataset, DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -101,7 +101,7 @@ class ComposedDataset(Dataset):
         return self.size
 
 
-loss_func = mse_loss
+loss_func = l1_loss
 
 
 def train_model_full(model, data_iterator, optimizer, gscaler, is_train):
@@ -411,7 +411,7 @@ def main(
     model_class = ThreeBodyMLPSkip if skip else ThreeBodyMLP
     model = model_class(n_out=n_out).cuda()
     opt = torch.optim.Adam(
-        model.parameters(), lr=learning_rate, weight_decay=1e-3
+        model.parameters(), lr=learning_rate, weight_decay=1e-2
     )
     frac_mstones = np.array([0.3, 0.5, 0.7, 0.8, 0.85, 0.95, 0.98])
     mstones = np.round(frac_mstones * epochs).astype(int)
