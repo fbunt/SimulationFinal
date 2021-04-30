@@ -53,7 +53,7 @@ def save_solution(out_dir, id_, solution):
 
 
 NT = 1000
-TF = 5
+TF = 4
 TOL = 1e-12
 
 
