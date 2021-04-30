@@ -349,7 +349,7 @@ def get_parser():
         "-l",
         "--learning_rate",
         type=float,
-        default=1e-5,
+        default=1e-4,
         help="Learning rate for training",
     )
     p.add_argument(
@@ -413,7 +413,7 @@ def main(
     opt = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=1e-2
     )
-    frac_mstones = np.array([0.3, 0.5, 0.7, 0.8, 0.85, 0.95, 0.98])
+    frac_mstones = np.array([0.1, 0.5, 0.7, 0.8, 0.85, 0.95, 0.98])
     mstones = np.round(frac_mstones * epochs).astype(int)
     sched = torch.optim.lr_scheduler.MultiStepLR(opt, mstones, 0.5)
     train_logger = SummaryWriter("./logs/training")
