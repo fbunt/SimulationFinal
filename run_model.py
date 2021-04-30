@@ -40,14 +40,15 @@ def save_solutions(sol_dict):
             pickle.dump(s, fd, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def get_model_solution(model, ds):
+def get_model_solution(pmodel, vmodel, ds):
     y0 = ds.y0
     ds = dataset_to_array(ds)
     t = ds[:, 0].copy()
     ds = torch.tensor(ds).float().cuda()
     with torch.no_grad():
-        out = model(ds).cpu().numpy()
-    x1x, x1y, x2x, x2y, *vs = out.T
+        pout = pmodel(ds).cpu().numpy()
+        vout = vmodel(ds).cpu().numpy()
+    x1x, x1y, x2x, x2y = pout.T
     y = np.zeros((len(ds), 12))
     y[:, 0] = x1x
     y[:, 1] = x1y
@@ -55,8 +56,7 @@ def get_model_solution(model, ds):
     y[:, 3] = x2y
     y[:, 4] = -x1x - x2x
     y[:, 5] = -x1y - x2y
-    if len(vs) > 0:
-        y[:, 6:] = np.array(vs).T
+    y[:, 6:] = vout
     return Solution(y0, t, y)
 
 
@@ -72,8 +72,8 @@ def get_parser():
     p.add_argument(
         "-s", "--skip", action="store_true", help="Use model with skips"
     )
-    p.add_argument("model_path", type=str, help="Model location")
-    p.add_argument("n_out", type=int, help="Size of model output")
+    p.add_argument("pmodel_path", type=str, help="Position model location")
+    p.add_argument("vmodel_path", type=str, help="Velocity model location")
     p.add_argument(
         "data_dir", type=str, help="Directory with solutions to load"
     )
@@ -81,14 +81,15 @@ def get_parser():
     return p
 
 
-def main(model_path, n_out, data_dir, out_dir, skip):
+def main(pmodel_path, vmodel_path, data_dir, out_dir, skip):
     if not os.path.isdir(out_dir):
         os.mak(out_dir, exist_ok=True)
-    model = load_model(model_path, n_out, skip)
+    pmodel = load_model(pmodel_path, 4, skip)
+    vmodel = load_model(vmodel_path, 6, skip)
     sols = load_solutions(data_dir)
     sols = {f: SolutionInputDataset(s) for f, s in sols.items()}
     model_sols = {
-        get_model_out_name(out_dir, f): get_model_solution(model, s)
+        get_model_out_name(out_dir, f): get_model_solution(pmodel, vmodel, s)
         for f, s in sols.items()
     }
     save_solutions(model_sols)
