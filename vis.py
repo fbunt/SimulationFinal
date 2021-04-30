@@ -42,16 +42,16 @@ class SingleSolutionPlotter:
         self.positions = []
 
         # Plot body traces
-        for x, y in self.bodies:
-            (trace,) = self.ax.plot(x, y, color="gray", lw=0.5)
+        for (x, y), c in zip(self.bodies, self.colors):
+            (trace,) = self.ax.plot(x, y, color=c, lw=0.5)
             self.traces.append(trace)
         # Plot trailing tail
-        for b, c in zip(self.bodies, self.colors):
+        for (x, y), c in zip(self.bodies, self.colors):
             (tail,) = self.ax.plot(x[:1], y[:1], color=c)
             self.artists.append(tail)
             self.tails.append(tail)
         # Plot bodies
-        for b, c in zip(self.bodies, self.colors):
+        for (x, y), c in zip(self.bodies, self.colors):
             (pos,) = self.ax.plot(x[:1], y[:1], "o", color=c)
             self.artists.append(pos)
             self.positions.append(pos)
