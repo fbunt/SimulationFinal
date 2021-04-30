@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import nn
 
@@ -69,3 +70,37 @@ class ThreeBodyMLPSkip(torch.nn.Module):
         x = self.block1_act(self.block1(x) + x)
         x = self.block2_act(self.block2(x) + x)
         return self.out(x)
+
+
+def load_model(path, n_out, skip=True):
+    model_class = ThreeBodyMLPSkip if skip else ThreeBodyMLP
+    model = model_class(n_out).cuda()
+    try:
+        model.load_state_dict(torch.load(path))
+    except RuntimeError:
+        # try again but treat as full training snapshot
+        try:
+            model.load_state_dict(torch.load(path)["model"])
+        except Exception as e:
+            raise e
+    model.eval()
+    return model
+
+
+class FullModelWrapper:
+    def __init__(self, pos_model, vel_model):
+        self.pmod = pos_model
+        self.vmod = vel_model
+        self.pmod.eval()
+        self.vmod.eval()
+
+    def __call__(self, x):
+        with torch.no_grad():
+            pout = self.pmod(x).cpu().numpy()
+            vout = self.vmod(x).cpu().numpy()
+            shape = (len(x), 12) if len(x.shape) == 2 else (12,)
+            out = np.zeros(shape)
+            out[..., :4] = pout
+            out[..., 4:6] = -pout[..., :2] - pout[..., 2:4]
+            out[..., 6:] = vout
+            return out
