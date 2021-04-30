@@ -92,11 +92,14 @@ def get_parser():
     p.add_argument(
         "-e", "--error", action="store_true", help="Plot energy errors"
     )
+    p.add_argument(
+        "-s", "--save_path", default=None, type=str, help="Save figure to path"
+    )
     p.add_argument("paths", nargs="+", help="Path(s) to solution file(s)")
     return p
 
 
-def main(paths, error):
+def main(paths, error, save_path):
     sols = [load_data(path) for path in paths]
     energies = [energy(*solution_to_bodies(sol)) for sol in sols]
     fig = plt.figure(figsize=(10, 10))
@@ -127,6 +130,8 @@ def main(paths, error):
             plot_energy_error(sols[0].t, errs[0], ax1, False)
             ax2.set_title("Model Solution")
             plot_energy_error(sols[1].t, errs[1], ax2, True)
+        if save_path is not None:
+            plt.savefig(save_path, dpi=200)
     plt.show()
 
 
