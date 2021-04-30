@@ -96,7 +96,7 @@ def loss_func(y, y0, energy0, g1, g2):
     return np.sum(err)
 
 
-def optimize_solution(ms, s, g1=1e-11, g2=1e-11):
+def optimize_solution(ms, s, g1=1e-10, g2=1e-10):
     energy0 = get_energy(s.y0)
     args = (s.y0, energy0, g1, g2)
     yopt = np.zeros_like(ms.y)
@@ -107,7 +107,7 @@ def optimize_solution(ms, s, g1=1e-11, g2=1e-11):
             x0,
             args,
             method="Nelder-Mead",
-            options={"adaptive": True},
+            options={"adaptive": True, "xatol": 1e-7},
         )
         yopt[i] = res.x
     return yopt
