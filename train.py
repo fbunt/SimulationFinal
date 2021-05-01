@@ -246,11 +246,28 @@ def build_dataset(files, subset):
     return ComposedDataset([input_ds, label_ds])
 
 
-def build_train_test_datasets(files, subset, train_size=0.9):
-    train_files, test_files = train_test_split(files, train_size)
+def build_train_test_datasets(train_files, test_files, subset):
     train_ds = build_dataset(train_files, subset)
     test_ds = build_dataset(test_files, subset)
-    return train_ds, test_ds
+    return train_ds, test_ds, [train_files, test_files]
+
+
+def save_files_split(files_split):
+    train_files, test_files = files_split
+    with open("train_test_files_split.txt", "w") as fd:
+        for f in train_files:
+            fd.write(f"train: {f}\n")
+        for f in test_files:
+            fd.write(f"test: {f}\n")
+
+
+def load_files_split():
+    files = {"train": [], "test": []}
+    with open("train_test_files_split.txt", "r") as fd:
+        for line in fd:
+            key, f = [s.strip() for s in line.split(":")]
+            files[key].append(f)
+    return [files["train"], files["test"]]
 
 
 FNAME_MODEL = "model.pt"
@@ -392,7 +409,15 @@ def main(
     resume=False,
 ):
     files = glob.glob(os.path.join(data_dir, "*.pkl"))
-    train_ds, test_ds = build_train_test_datasets(files, subset, 0.9)
+    if not resume:
+        train_files, test_files = train_test_split(files, 0.9)
+    else:
+        train_files, test_files = load_files_split()
+    train_ds, test_ds, files_split = build_train_test_datasets(
+        train_files, test_files, subset
+    )
+    if not resume:
+        save_files_split(files_split)
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
