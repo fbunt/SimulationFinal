@@ -2,7 +2,10 @@ data/
 data_*/
 logs/
 v1/
+img/
 samples*
+test_samples/
 *.pt
 *.gz
 *.tar
+train_test_files_split.txt
